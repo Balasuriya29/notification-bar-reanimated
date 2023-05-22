@@ -1,9 +1,17 @@
-import {Image, Pressable, StatusBar, StyleSheet, Text} from 'react-native';
+import {
+  Image,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  Dimensions,
+} from 'react-native';
 import {View, useWindowDimensions} from 'react-native';
 import {
   GestureHandlerRootView,
   PanGestureHandler,
   ScrollView,
+  TapGestureHandler,
 } from 'react-native-gesture-handler';
 import Animated, {
   interpolate,
@@ -12,11 +20,16 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withDecay,
   withTiming,
 } from 'react-native-reanimated';
 import {DarkTheme, DefaultTheme} from '@react-navigation/native';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {Icon} from '@rneui/themed';
+
+const {width, height} = Dimensions.get('screen');
+const heightOfBarInit = height * 0.28;
+const heightOfBarIncrease = height * 0.325;
 
 function App() {
   const {width, height} = useWindowDimensions();
@@ -42,7 +55,7 @@ function App() {
   };
 
   const translateY = useSharedValue(0);
-  const translateYInit = useSharedValue(height * -0.28);
+  const translateYInit = useSharedValue(-heightOfBarInit);
 
   const panGestureEvent = useAnimatedGestureHandler({
     onStart: (event, context) => {
@@ -52,14 +65,14 @@ function App() {
     onActive: (event, context) => {
       if (
         !notificationBarIsOpen &&
-        event.translationY + context.startYInit > height * -0.28 &&
+        event.translationY + context.startYInit > -heightOfBarInit &&
         event.translationY + context.startYInit < 0
       )
         translateYInit.value = event.translationY + context.startYInit;
 
       if (
         event.translationY + context.startY > 0 &&
-        event.translationY + context.startY < height * 0.325
+        event.translationY + context.startY < heightOfBarIncrease
       )
         translateY.value = event.translationY + context.startY;
     },
@@ -69,13 +82,13 @@ function App() {
           translateYInit.value = withTiming(0);
           runOnJS(setActive)(true);
         } else {
-          translateYInit.value = withTiming(height * -0.28);
+          translateYInit.value = withTiming(-heightOfBarInit);
           runOnJS(setActive)(false);
         }
       }
       if (notificationBarActive) {
         if (event.translationY > 0) {
-          translateY.value = withTiming(height * 0.325);
+          translateY.value = withTiming(heightOfBarIncrease);
           runOnJS(setOpen)(true);
         } else {
           translateY.value = withTiming(0);
@@ -92,7 +105,7 @@ function App() {
     onActive: (event, context) => {
       if (
         !notificationBarIsOpen &&
-        event.translationY + context.startY > height * -0.28 &&
+        event.translationY + context.startY > -heightOfBarInit &&
         event.translationY + context.startY < 0
       )
         translateYInit.value = event.translationY + context.startY;
@@ -100,7 +113,7 @@ function App() {
       if (
         (notificationBarActive || notificationBarIsOpen) &&
         event.translationY + context.startYNotInit >= 0 &&
-        event.translationY + context.startYNotInit < height * 0.325
+        event.translationY + context.startYNotInit < heightOfBarIncrease
       ) {
         translateY.value = event.translationY + context.startYNotInit;
       }
@@ -108,7 +121,7 @@ function App() {
     onEnd: (event, context) => {
       if (notificationBarIsOpen) {
         if (event.translationY < 0) {
-          translateYInit.value = withTiming(height * -0.28);
+          translateYInit.value = withTiming(-heightOfBarInit);
           runOnJS(setActive)(false);
         }
       }
@@ -118,13 +131,13 @@ function App() {
           translateYInit.value = withTiming(0);
           runOnJS(setActive)(true);
         } else {
-          translateYInit.value = withTiming(height * -0.28);
+          translateYInit.value = withTiming(-heightOfBarInit);
           runOnJS(setActive)(false);
         }
       }
       if (notificationBarActive) {
         if (event.translationY > 0) {
-          translateY.value = withTiming(height * 0.325);
+          translateY.value = withTiming(heightOfBarIncrease);
           runOnJS(setOpen)(true);
         } else {
           translateY.value = withTiming(0);
@@ -147,7 +160,7 @@ function App() {
   const animateBGBlur = useAnimatedStyle(() => {
     const opacity = interpolate(
       translateYInit.value,
-      [height * -0.28, 0],
+      [-heightOfBarInit, 0],
       [0, 0.5],
     );
 
@@ -160,7 +173,10 @@ function App() {
     <GestureHandlerRootView style={{flex: 1}}>
       <Image
         source={require('../notification_bar_reanimated/assets/wallpaper.jpg')}
-        style={[StyleSheet.absoluteFill, {width: width, height: height}]}
+        style={[
+          StyleSheet.absoluteFill,
+          {width: width, height: height, transform: [{scale: 1.25}]},
+        ]}
       />
       <Animated.View
         style={[
@@ -170,17 +186,42 @@ function App() {
         ]}
       />
       <PanGestureHandler onGestureEvent={panGestureEventInit}>
-        <Animated.View style={[{flex: 1}, animateInit]}>
-          <StatusBar hidden />
+        <Animated.View style={[{height: height + height * 0.28}, animateInit]}>
+          <Pressable
+            style={{flex: 1}}
+            onPress={e => {
+              let canClose = false;
+              if (
+                notificationBarIsOpen &&
+                e.nativeEvent.pageY >= heightOfBarInit + heightOfBarIncrease
+              ) {
+                translateY.value = withTiming(0);
+                setOpen(false);
+                canClose = true;
+              }
 
-          <MainFrame
-            translateY={translateY}
-            panGestureEvent={panGestureEvent}
-            colors={colors}
-            setTheme={setTheme}
-            theme={theme}
-            notificationBarActive={notificationBarActive}
-          />
+              if (
+                (!notificationBarIsOpen || canClose) &&
+                notificationBarActive &&
+                e.nativeEvent.pageY >= heightOfBarInit
+              ) {
+                translateYInit.value = withTiming(-heightOfBarInit);
+                setActive(false);
+              }
+            }}>
+            <View>
+              <StatusBar hidden />
+
+              <MainFrame
+                translateY={translateY}
+                panGestureEvent={panGestureEvent}
+                colors={colors}
+                setTheme={setTheme}
+                theme={theme}
+                notificationBarActive={notificationBarActive}
+              />
+            </View>
+          </Pressable>
         </Animated.View>
       </PanGestureHandler>
     </GestureHandlerRootView>
@@ -402,11 +443,13 @@ function MainFrame({
       ),
     ];
     let left = interpolate(translateY.value, [0, 230, 0], [-7.5, 0, -7.5]);
+    let top = interpolate(translateY.value, [0, 230, 0], [20, 30, 20]);
 
     return {
       width: size[0],
       height: size[1],
       marginLeft: left,
+      marginTop: top,
     };
   });
 
@@ -465,7 +508,7 @@ function MainFrame({
           {
             backgroundColor: colors.background,
             width: width * 0.95,
-            marginLeft: 10,
+            marginLeft: 8,
             borderRadius: 20,
             marginBottom: 10,
             paddingHorizontal: 25,
@@ -498,19 +541,38 @@ function MainFrame({
             {date}
           </Text>
         </Animated.View>
-        <Animated.Text
+        <Animated.View
           style={[
-            {fontSize: 16, color: colors.text, fontWeight: 600, marginTop: 10},
+            {
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            },
             animateOpacityFadeOut,
           ]}>
-          {date}
-        </Animated.Text>
+          <Animated.Text
+            style={[
+              {
+                fontSize: 16,
+                color: colors.text,
+                fontWeight: 600,
+                marginTop: 10,
+              },
+            ]}>
+            {date}
+          </Animated.Text>
+          <Icon
+            name="network-cell"
+            color={colors.text}
+            size={18}
+            style={{marginTop: 10}}
+          />
+        </Animated.View>
         <Animated.View
           style={[
             {
               flexDirection: 'row',
               overflow: 'hidden',
-              marginTop: 20,
               flexWrap: 'wrap',
             },
             animatedIconConSize,
@@ -531,59 +593,78 @@ function MainFrame({
             );
           })}
         </Animated.View>
-        <View
+        <Pressable
           style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
             position: 'absolute',
             bottom: 65,
             left: 30,
+          }}
+          onPress={e => {
+            let position = e.nativeEvent.pageX - width * 0.22;
+            if (position > -5 && position < width * 0.53)
+              translateX.value = withTiming(position);
           }}>
-          <Icon name="ios-sunny" color="grey" type="ionicon" size={22} />
           <View
             style={{
-              marginHorizontal: width * 0.06,
-              height: 17,
               flexDirection: 'row',
+              justifyContent: 'space-between',
               alignItems: 'center',
             }}>
-            <PanGestureHandler onGestureEvent={brightnessBarEvents}>
+            <Icon name="ios-sunny" color="grey" type="ionicon" size={22} />
+            <View
+              style={{
+                marginHorizontal: width * 0.06,
+                height: 17,
+                flexDirection: 'row',
+                alignItems: 'center',
+              }}>
+              <PanGestureHandler onGestureEvent={brightnessBarEvents}>
+                <Animated.View
+                  style={[
+                    {
+                      backgroundColor: colors.notification,
+                      width: 17,
+                      position: 'absolute',
+                      height: 17,
+                      zIndex: 1,
+                      borderRadius: 8.5,
+                      shadowColor: 'white',
+                    },
+                    animatedBrightnessBar,
+                  ]}
+                />
+              </PanGestureHandler>
               <Animated.View
                 style={[
                   {
-                    backgroundColor: colors.notification,
-                    width: 17,
-                    position: 'absolute',
-                    height: 17,
-                    zIndex: 1,
-                    borderRadius: 8.5,
-                    shadowColor: 'white',
+                    width: 0,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: 'red',
                   },
-                  animatedBrightnessBar,
+                  animateWidthForBrightnessI,
                 ]}
               />
-            </PanGestureHandler>
-            <Animated.View
-              style={[
-                {width: 0, height: 4, borderRadius: 2, backgroundColor: 'red'},
-                animateWidthForBrightnessI,
-              ]}
-            />
-            <Animated.View
-              style={[
-                {
-                  width: width * 0.56,
-                  height: 4,
-                  borderRadius: 2,
-                  backgroundColor: 'grey',
-                },
-                animateWidthForBrightnessD,
-              ]}
+              <Animated.View
+                style={[
+                  {
+                    width: width * 0.56,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: 'grey',
+                  },
+                  animateWidthForBrightnessD,
+                ]}
+              />
+            </View>
+            <Icon
+              name="ios-sunny"
+              color={colors.text}
+              type="ionicon"
+              size={22}
             />
           </View>
-          <Icon name="ios-sunny" color={colors.text} type="ionicon" size={22} />
-        </View>
+        </Pressable>
         <View
           style={{
             flexDirection: 'row',
