@@ -1,3 +1,4 @@
+// Imports
 import {
   Image,
   Pressable,
@@ -5,8 +6,9 @@ import {
   StyleSheet,
   Text,
   Dimensions,
+  View,
+  useWindowDimensions,
 } from 'react-native';
-import {View, useWindowDimensions} from 'react-native';
 import {
   GestureHandlerRootView,
   PanGestureHandler,
@@ -27,11 +29,14 @@ import {DarkTheme, DefaultTheme} from '@react-navigation/native';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {Icon} from '@rneui/themed';
 
+//Global Utils
 const {width, height} = Dimensions.get('screen');
 const heightOfBarInit = height * 0.28;
 const heightOfBarIncrease = height * 0.325;
+const homescreens = [0, width * -0.35, width * -0.75];
 
 function App() {
+  //Local Reactive State
   const {width, height} = useWindowDimensions();
   const [theme, setTheme] = useState(0);
   const [notificationBarActive, setNotificationBarActive] = useState(false);
@@ -40,12 +45,16 @@ function App() {
     ...DefaultTheme.colors,
     icon_color: 'black',
   });
+  const [currentScreen, setCurrentScreen] = useState(0);
+  const [isHorizontalScrolling, setIsHorizontalScrolling] = useState(0);
 
+  //Memo for Theme
   useMemo(() => {
     if (!theme) setColors({...DefaultTheme.colors, icon_color: 'black'});
     else setColors({...DarkTheme.colors, icon_color: 'lightgrey'});
   }, [theme]);
 
+  //Handlers
   const setActive = value => {
     if (value !== notificationBarActive) setNotificationBarActive(value);
   };
@@ -54,9 +63,18 @@ function App() {
     if (value !== notificationBarIsOpen) setNotificationBarIsOpen(value);
   };
 
+  const setHorizontalScrolling = value => {
+    if (value !== isHorizontalScrolling) setIsHorizontalScrolling(value);
+  };
+
+  const setScreen = screen => setCurrentScreen(screen);
+
+  //Shared Animate Value
   const translateY = useSharedValue(0);
+  const translateX = useSharedValue(0);
   const translateYInit = useSharedValue(-heightOfBarInit);
 
+  //PanGesture Handler
   const panGestureEvent = useAnimatedGestureHandler({
     onStart: (event, context) => {
       context.startY = translateY.value;
@@ -100,22 +118,42 @@ function App() {
   const panGestureEventInit = useAnimatedGestureHandler({
     onStart: (event, context) => {
       context.startY = translateYInit.value;
+      context.startX = translateX.value;
       context.startYNotInit = translateY.value;
     },
     onActive: (event, context) => {
       if (
-        !notificationBarIsOpen &&
-        event.translationY + context.startY > -heightOfBarInit &&
-        event.translationY + context.startY < 0
-      )
-        translateYInit.value = event.translationY + context.startY;
-
-      if (
-        (notificationBarActive || notificationBarIsOpen) &&
-        event.translationY + context.startYNotInit >= 0 &&
-        event.translationY + context.startYNotInit < heightOfBarIncrease
+        (isHorizontalScrolling || Math.abs(event.translationX) > 20) &&
+        !notificationBarActive
       ) {
-        translateY.value = event.translationY + context.startYNotInit;
+        runOnJS(setHorizontalScrolling)(1);
+        if (
+          event.translationX + context.startX < 0 &&
+          event.translationX + context.startX > width * -0.75
+        ) {
+          translateX.value = event.translationX + context.startX;
+        }
+      } else if (Math.abs(event.translationY) > 25) {
+        if (
+          !isHorizontalScrolling &&
+          !notificationBarIsOpen &&
+          event.translationY + context.startY > -heightOfBarInit &&
+          event.translationY + context.startY < 0
+        ) {
+          runOnJS(setHorizontalScrolling)(0);
+
+          translateYInit.value = event.translationY + context.startY;
+        }
+
+        if (
+          (notificationBarActive || notificationBarIsOpen) &&
+          event.translationY + context.startYNotInit >= 0 &&
+          event.translationY + context.startYNotInit < heightOfBarIncrease
+        ) {
+          runOnJS(setHorizontalScrolling)(0);
+
+          translateY.value = event.translationY + context.startYNotInit;
+        }
       }
     },
     onEnd: (event, context) => {
@@ -127,7 +165,7 @@ function App() {
       }
 
       if (!notificationBarIsOpen) {
-        if (event.translationY > 0) {
+        if (event.translationY > 25 && Math.abs(event.translationX) < 25) {
           translateYInit.value = withTiming(0);
           runOnJS(setActive)(true);
         } else {
@@ -135,8 +173,9 @@ function App() {
           runOnJS(setActive)(false);
         }
       }
+
       if (notificationBarActive) {
-        if (event.translationY > 0) {
+        if (event.translationY > 25 && Math.abs(event.translationX) < 25) {
           translateY.value = withTiming(heightOfBarIncrease);
           runOnJS(setOpen)(true);
         } else {
@@ -144,9 +183,29 @@ function App() {
           runOnJS(setOpen)(false);
         }
       }
+
+      if (!notificationBarActive) {
+        if (event.translationX < 0 && Math.abs(event.translationY) < 20) {
+          if (currentScreen < 2) {
+            translateX.value = withTiming(homescreens[currentScreen + 1]);
+            runOnJS(setScreen)(currentScreen + 1);
+          }
+        } else if (
+          event.translationX > 0 &&
+          Math.abs(event.translationY) < 20
+        ) {
+          if (currentScreen > 0) {
+            translateX.value = withTiming(homescreens[currentScreen - 1]);
+            runOnJS(setScreen)(currentScreen - 1);
+          }
+        }
+      }
+
+      runOnJS(setHorizontalScrolling)(0);
     },
   });
 
+  //animated to link pan gesture with native property
   const animateInit = useAnimatedStyle(() => {
     return {
       transform: [
@@ -157,6 +216,13 @@ function App() {
     };
   });
 
+  const animateBGX = useAnimatedStyle(() => {
+    return {
+      transform: [{scale: 1.1}, {translateX: translateX.value}],
+    };
+  });
+
+  //Interpolated Animation
   const animateBGBlur = useAnimatedStyle(() => {
     const opacity = interpolate(
       translateYInit.value,
@@ -171,13 +237,72 @@ function App() {
 
   return (
     <GestureHandlerRootView style={{flex: 1}}>
-      <Image
-        source={require('../notification_bar_reanimated/assets/wallpaper.jpg')}
+      <Animated.View
         style={[
           StyleSheet.absoluteFill,
-          {width: width, height: height, transform: [{scale: 1.25}]},
-        ]}
-      />
+          {
+            width: width + width * 0.5,
+            height: height,
+          },
+          animateBGX,
+        ]}>
+        <Image
+          source={require('../notification_bar_reanimated/assets/wallpaper.jpg')}
+          style={{width: width + width * 0.75, height: height}}
+        />
+      </Animated.View>
+
+      <View
+        style={{
+          width,
+          height: height * 0.15,
+          position: 'absolute',
+          alignItems: 'center',
+          bottom: 0,
+          right: 10,
+        }}>
+        <View style={{marginBottom: 30, flexDirection: 'row'}}>
+          {[0, 1, 2].map(elem => {
+            return (
+              <View
+                key={elem}
+                style={[
+                  {
+                    borderColor: 'white',
+                    width: 9,
+                    height: 9,
+                    borderWidth: 1,
+                    borderRadius: 4.5,
+                    marginLeft: 10,
+                  },
+                  currentScreen === elem ? {backgroundColor: 'white'} : {},
+                ]}
+              />
+            );
+          })}
+        </View>
+        <View
+          style={{
+            flexDirection: 'row',
+          }}>
+          <Image
+            source={require('../notification_bar_reanimated/assets/homescreen-icon-phone.png')}
+            style={{width: 55, height: 55, marginLeft: 20}}
+          />
+          <Image
+            source={require('../notification_bar_reanimated/assets/homescreen-icon-message.png')}
+            style={{width: 55, height: 55, marginLeft: 20}}
+          />
+          <Image
+            source={require('../notification_bar_reanimated/assets/homescreen-icon-gallery.png')}
+            style={{width: 55, height: 55, marginLeft: 20}}
+          />
+          <Image
+            source={require('../notification_bar_reanimated/assets/homescreen-icon-camera.png')}
+            style={{width: 55, height: 55, marginLeft: 20}}
+          />
+        </View>
+      </View>
       <Animated.View
         style={[
           StyleSheet.absoluteFill,
@@ -236,11 +361,15 @@ function MainFrame({
   theme,
   notificationBarActive,
 }) {
+  //Local Reactive States
   const {width, height} = useWindowDimensions();
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
+
+  //Shared Animation Value
   const translateX = useSharedValue(-5);
 
+  //Utils
   const icons = [
     {
       name: 'Wi-fi',
@@ -346,6 +475,7 @@ function MainFrame({
     },
   ];
 
+  //Get the Date
   useEffect(() => {
     let today = new Date();
     let dateString = '';
@@ -376,9 +506,11 @@ function MainFrame({
     setDate(dateString);
   }, []);
 
+  //Set Interval to run Clock in Notification Bar
   useEffect(() => {
     let today = new Date();
     const timeout = setInterval(() => {
+      today = new Date();
       setTime(today.toTimeString().slice(0, 5));
     }, 60000);
 
@@ -389,12 +521,40 @@ function MainFrame({
     };
   }, []);
 
+  //PanGesture Handler
+  const brightnessBarEvents = useAnimatedGestureHandler({
+    onStart: (event, context) => {
+      context.startX = translateX.value;
+    },
+    onActive: (event, context) => {
+      if (
+        event.translationX + context.startX > -5 &&
+        event.translationX + context.startX < width * 0.53
+      )
+        translateX.value = event.translationX + context.startX;
+    },
+    onEnd: () => {},
+  });
+
+  //AnimatedStyle to link translateY with height
   const animateHeight = useAnimatedStyle(() => {
     return {
       height: height * 0.28 + translateY.value,
     };
   });
 
+  //AnimatedStyle to line translateX with Brightness Bar
+  const animatedBrightnessBar = useAnimatedStyle(() => {
+    return {
+      transform: [
+        {
+          translateX: translateX.value,
+        },
+      ],
+    };
+  });
+
+  //Interpolated Animated Styles
   const animateOpacityFadeIn = useAnimatedStyle(() => {
     let opa = interpolate(translateY.value, [200, 230, 200], [0, 1, 0]);
     return {
@@ -453,16 +613,6 @@ function MainFrame({
     };
   });
 
-  const animatedBrightnessBar = useAnimatedStyle(() => {
-    return {
-      transform: [
-        {
-          translateX: translateX.value,
-        },
-      ],
-    };
-  });
-
   const animateWidthForBrightnessI = useAnimatedStyle(() => {
     let w = interpolate(
       translateX.value,
@@ -485,20 +635,6 @@ function MainFrame({
     return {
       width: w,
     };
-  });
-
-  const brightnessBarEvents = useAnimatedGestureHandler({
-    onStart: (event, context) => {
-      context.startX = translateX.value;
-    },
-    onActive: (event, context) => {
-      if (
-        event.translationX + context.startX > -5 &&
-        event.translationX + context.startX < width * 0.53
-      )
-        translateX.value = event.translationX + context.startX;
-    },
-    onEnd: () => {},
   });
 
   return (
@@ -730,10 +866,14 @@ function BarIcon({
   colors,
   notificationBarActive,
 }) {
+  //Local Reactive State
   const scroll = useRef();
   const [isActive, setIsActive] = useState(false);
+
+  //Shared Animation Value
   const rx = useSharedValue('180deg');
 
+  //To Set Theme
   useEffect(() => {
     //Need to Optimize
     // let interval,
