@@ -12,11 +12,11 @@ React Native - javascript
 
 ## Screenshots
 
-![img-1](https://github.com/Balasuriya29/notification-bar-reanimated/assets/100402643/664a2e46-72d1-47a4-8419-671602a88523)
+![img-1](https://github.com/Balasuriya29/notification-bar-reanimated/assets/100402643/5441d394-d9c8-4cb6-8cf0-96608e2a87a1)
 ![img-4](https://github.com/Balasuriya29/notification-bar-reanimated/assets/100402643/65bad3e2-a416-4bf7-bbe2-64a1ebc0042b)
 
 
-![img-2](https://github.com/Balasuriya29/notification-bar-reanimated/assets/100402643/cbdf6dff-5ef1-4acc-a3a4-50ba5e433f17)
+![img-2](https://github.com/Balasuriya29/notification-bar-reanimated/assets/100402643/b7ebd7b4-6c05-4a6d-9acf-4f93bb846e27)
 ![img-5](https://github.com/Balasuriya29/notification-bar-reanimated/assets/100402643/fa935294-b46d-4f76-903b-ab7282ce9f9b)
 
 
@@ -26,8 +26,7 @@ React Native - javascript
 
 ## Demo
 
-https://github.com/Balasuriya29/notification-bar-reanimated/assets/100402643/d676a288-9557-4f54-825e-46cd8283a66c
-
+https://github.com/Balasuriya29/notification-bar-reanimated/assets/100402643/3c343f78-4ba0-4218-9217-62cdc029268a
 
 
 
